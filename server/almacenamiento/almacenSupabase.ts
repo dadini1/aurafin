@@ -18,6 +18,8 @@ function cabeceras(extra: Record<string, string> = {}): Record<string, string> {
     apikey: config.supabase.serviceKey,
     Authorization: `Bearer ${config.supabase.serviceKey}`,
     'Content-Type': 'application/json',
+    // Supabase rechaza secret keys con User-Agent de navegador; declaramos el servidor.
+    'User-Agent': 'aurafin-server/1.0',
     ...extra,
   };
 }
@@ -77,7 +79,8 @@ export interface EmpresaNube {
 export const listarEmpresas = () => llamada<EmpresaNube>('GET', url('empresas', { orden: 'created_at.asc' }));
 
 export const buscarEmpresaPorSlug = (slug: string) =>
-  llamada<EmpresaNube>('GET', url('empresas', { filtro: `slug=eq.${encodeURIComponent(slug)}`, limite: 1 }));
+  // URLSearchParams codifica el valor; no pre-encode (evita doble %40)
+  llamada<EmpresaNube>('GET', url('empresas', { filtro: `slug=eq.${slug}`, limite: 1 }));
 
 export const insertarEmpresa = (empresa: Partial<EmpresaNube>) => llamada<EmpresaNube>('POST', url('empresas'), empresa);
 
@@ -101,7 +104,7 @@ export const listarUsuariosDeEmpresa = (empresaId: string) =>
   llamada<UsuarioNube>('GET', url('usuarios_empresa', { filtro: `empresa_id=eq.${empresaId}` }));
 
 export const buscarUsuario = (correo: string) =>
-  llamada<UsuarioNube>('GET', url('usuarios_empresa', { filtro: `correo=eq.${encodeURIComponent(correo)}`, limite: 1 }));
+  llamada<UsuarioNube>('GET', url('usuarios_empresa', { filtro: `correo=eq.${correo}`, limite: 1 }));
 
 export const insertarUsuario = (usuario: Partial<UsuarioNube>) => llamada<UsuarioNube>('POST', url('usuarios_empresa'), usuario);
 

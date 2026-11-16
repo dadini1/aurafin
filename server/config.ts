@@ -5,6 +5,10 @@
  * - Seguridad: secreto de sesiones y token heredado de sincronización.
  */
 import path from 'path';
+// dotenv debe evaluarse ANTES de leer process.env: los imports ESM se
+// resuelven antes que el código del módulo que llama a dotenv.config().
+import dotenv from 'dotenv';
+dotenv.config();
 
 const BASE_DIR = path.resolve(process.cwd());
 
