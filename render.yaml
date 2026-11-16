@@ -1,0 +1,35 @@
+# Despliegue de AuraFin en Render (API + web en un solo servicio)
+# Crea el servicio desde el Blueprint o conecta el repo manualmente.
+services:
+  - type: web
+    name: aurafin-ai
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "3000"
+      # Pega los valores reales desde Supabase → Settings → API
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Genera un secreto único: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      - key: AURAFIN_SESSION_SECRET
+        sync: false
+      # Cambia estas credenciales tras el primer arranque
+      - key: AURAFIN_ADMIN_EMAIL
+        value: admin@aurafin.app
+      - key: AURAFIN_ADMIN_PASSWORD
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

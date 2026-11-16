@@ -1,0 +1,11 @@
+{
+  "name": "AuraFin AI - Asistente de Voz, Notas Inteligentes y Finanzas",
+  "description": "Asistente virtual inteligente con reconocimiento y respuesta de voz para notas con auto-adjuntos de archivos y contactos, programación de pagos fijos/variables, y recomendaciones de ahorro, vehículos y bienes raíces en tiempo real.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

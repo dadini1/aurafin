@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="50%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="url(#grad)" />
+  <!-- Sparkle / AI Star Symbol -->
+  <path d="M96 36 L106 76 L146 86 L106 96 L96 136 L86 96 L46 86 L86 76 Z" fill="#ffffff" />
+  <!-- Mini Sparkle -->
+  <path d="M138 46 L142 62 L158 66 L142 70 L138 86 L134 70 L118 66 L134 62 Z" fill="#38bdf8" opacity="0.9" />
+  <!-- Finance Ring Arc -->
+  <circle cx="96" cy="96" r="66" stroke="#ffffff" stroke-width="6" stroke-dasharray="280 120" stroke-linecap="round" fill="none" opacity="0.4" />
+</svg>

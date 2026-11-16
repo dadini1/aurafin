@@ -1,0 +1,138 @@
+/**
+ * Cliente HTTP del ecosistema AuraFin (empresas, sesiones y diagnóstico).
+ * Un único punto de acceso a la API del servidor Express.
+ */
+
+const BASE = '/api';
+
+export interface MarcaEmpresa {
+  slug: string;
+  nombre: string;
+  eslogan?: string;
+  logo_url?: string;
+  colores: { primario: string; secundario: string; acento: string };
+}
+
+export interface UsuarioSesion {
+  id: string;
+  nombre: string;
+  correo: string;
+  rol: 'superadmin' | 'dueno' | 'admin_empresa' | 'empleado' | 'lectura';
+}
+
+const CLAVES = {
+  token: 'aurafin_sesion_token',
+  usuario: 'aurafin_sesion_usuario',
+  empresa: 'aurafin_sesion_empresa',
+  slugActivo: 'aurafin_empresa_activa',
+};
+
+function leer<T>(clave: string): T | null {
+  try {
+    const crudo = localStorage.getItem(clave);
+    return crudo ? (JSON.parse(crudo) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function guardar(clave: string, valor: unknown): void {
+  try {
+    if (valor === null) localStorage.removeItem(clave);
+    else localStorage.setItem(clave, JSON.stringify(valor));
+  } catch {
+    // almacenamiento no disponible (navegación privada)
+  }
+}
+
+/* ---------------- Sesión persistente ---------------- */
+
+export const sesion = {
+  obtenerToken: () => leer<string>(CLAVES.token),
+  obtenerUsuario: () => leer<UsuarioSesion>(CLAVES.usuario),
+  obtenerEmpresa: () => leer<MarcaEmpresa>(CLAVES.empresa),
+  obtenerSlugActivo: () => {
+    try {
+      return localStorage.getItem(CLAVES.slugActivo);
+    } catch {
+      return null;
+    }
+  },
+  guardar: (token: string, usuario: UsuarioSesion, empresa: MarcaEmpresa) => {
+    guardar(CLAVES.token, token);
+    guardar(CLAVES.usuario, usuario);
+    guardar(CLAVES.empresa, empresa);
+    try {
+      localStorage.setItem(CLAVES.slugActivo, empresa.slug);
+    } catch {
+      // ignore
+    }
+  },
+  limpiar: () => {
+    guardar(CLAVES.token, null);
+    guardar(CLAVES.usuario, null);
+    guardar(CLAVES.empresa, null);
+  },
+};
+
+export function cabecerasSesion(extra: Record<string, string> = {}): Record<string, string> {
+  const token = sesion.obtenerToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
+
+/* ---------------- Llamadas ---------------- */
+
+async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
+  const respuesta = await fetch(`${BASE}${ruta}`, opciones);
+  const cuerpo = await respuesta.json().catch(() => ({}));
+  if (!respuesta.ok) {
+    const mensaje = (cuerpo as { error?: string }).error || `Error HTTP ${respuesta.status}`;
+    throw new Error(mensaje);
+  }
+  return cuerpo as T;
+}
+
+export const aurafinApi = {
+  listarEmpresas: () => pedir<{ success: boolean; empresas: MarcaEmpresa[] }>('/empresas'),
+  obtenerMarca: (slug: string) => pedir<{ success: boolean; empresa: MarcaEmpresa }>(`/empresas/${encodeURIComponent(slug)}`),
+
+  iniciarSesion: (correo: string, password: string) =>
+    pedir<{ success: boolean; token: string; usuario: UsuarioSesion; empresa: MarcaEmpresa }>('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ correo, password }),
+    }),
+
+  crearEmpresa: (datos: Record<string, unknown>) =>
+    pedir<{ success: boolean; empresa: unknown }>('/empresas', {
+      method: 'POST',
+      headers: cabecerasSesion(),
+      body: JSON.stringify(datos),
+    }),
+
+  actualizarEmpresa: (id: string, cambios: Record<string, unknown>) =>
+    pedir<{ success: boolean; empresa: unknown }>(`/empresas/${id}`, {
+      method: 'PATCH',
+      headers: cabecerasSesion(),
+      body: JSON.stringify(cambios),
+    }),
+
+  listarUsuarios: (empresaId: string) =>
+    pedir<{ success: boolean; usuarios: Array<{ id: string; nombre: string; correo: string; rol: string; estado: string }> }>(
+      `/empresas/${empresaId}/usuarios`,
+      { headers: cabecerasSesion() }
+    ),
+
+  crearUsuario: (empresaId: string, datos: Record<string, unknown>) =>
+    pedir<{ success: boolean; usuario: unknown }>(`/empresas/${empresaId}/usuarios`, {
+      method: 'POST',
+      headers: cabecerasSesion(),
+      body: JSON.stringify(datos),
+    }),
+
+  estadoSistema: () => pedir<Record<string, unknown>>('/admin/estado', { headers: cabecerasSesion() }),
+};

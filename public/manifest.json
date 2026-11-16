@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "AuraFin AI - Asistente de Voz y Finanzas",
+  "short_name": "AuraFin",
+  "description": "Asistente virtual inteligente para notas por voz, auto-adjuntos de galería, control de pagos y alertas de presupuesto.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#f4f6fb",
+  "background_color": "#f4f6fb",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
