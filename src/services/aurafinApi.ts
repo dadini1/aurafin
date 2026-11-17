@@ -1,9 +1,13 @@
 /**
  * Cliente HTTP del ecosistema AuraFin (empresas, sesiones y diagnóstico).
  * Un único punto de acceso a la API del servidor Express.
+ *
+ * BASE: en Render/servido por Express usa el mismo origen ('/api'); si el
+ * front se despliega en Cloudflare Pages se define VITE_API_URL con la URL
+ * pública del servicio (ej. https://aurafin-ai.onrender.com/api).
  */
 
-const BASE = '/api';
+const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 
 export interface MarcaEmpresa {
   slug: string;
