@@ -85,6 +85,26 @@ void requireSyncToken; // se conserva para compatibilidad de rutas heredadas
 app.use(express.json({ limit: '2mb' }));
 const mediaJson = express.json({ limit: '35mb' });
 
+/* CORS para frontends en CDN (p. ej. Cloudflare Pages) que consumen esta API.
+ * - ALLOWED_ORIGINS: lista separada por comas (siempre permitidos).
+ * - Subdominios *.pages.dev de la cuenta: permitidos por defecto.
+ * - Sin Origin (mismo origen / apps nativas): pasa sin cabeceras CORS. */
+const ORIGENES_PERMITIDOS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',').map((o) => o.trim()).filter(Boolean);
+app.use('/api', (req, res, next) => {
+  const origen = req.header('origin');
+  if (!origen) return next();
+  const permitido = ORIGENES_PERMITIDOS.includes(origen) ||
+    (() => { try { return /\.pages\.dev$/.test(new URL(origen).hostname); } catch { return false; } })();
+  if (!permitido) return next();
+  res.setHeader('Access-Control-Allow-Origin', origen);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-aurafin-token');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  return next();
+});
+
 // Server-side Gemini initialization with user-agent header
 const getGeminiClient = () => {
   return new GoogleGenAI({
