@@ -1,5 +1,12 @@
 # 🚀 Guía de publicación de AuraFin (Supabase + Render + Cloudflare)
 
+> **✅ ESTADO REAL (2026-11-17): sistema publicado y verificado.**
+> - Web/API principal (Render): **https://aurafin-ai.onrender.com**
+> - Front en CDN (Cloudflare Pages): **https://aurafin.pages.dev**
+> - Supabase (proyecto AURAFIN · org DADINI): `https://nzutmifadcbsorjycsmn.supabase.co`
+> - Repositorio: **https://github.com/dadini1/aurafin** (rama `master`, auto-deploy en Render y Pages)
+> - Verificado: login superadmin, sync dual-write nube↔disco, aislamiento por empresa (403 cruzado), CORS `*.pages.dev`, login real desde la UI de Pages.
+
 Esta guía deja el ecosistema multiempresa **activo y funcionando**: base de datos
 en la nube (Supabase, gratis), espejo en el disco `G:`, API y web publicadas, y
 una empresa matriz con su superadmin.

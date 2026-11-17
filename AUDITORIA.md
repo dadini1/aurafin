@@ -120,3 +120,33 @@ modales correcto en móvil; las pestañas lazy cargan con skeleton y renderizan.
 - [x] Sync legado `POST/GET /api/sync/state` (token heredado) → `data/aurafin-db.json` versión incrementada
 - [x] Login sin Supabase → 503 controlado con mensaje claro
 - [x] Espejo por empresa `data/empresas/<slug>/` creado al afiliar
+
+---
+
+# 3ª verificación (2026-11-17) · Publicación en producción
+
+## Correcciones aplicadas durante el despliegue
+
+1. `.gitignore` con `data/` excluía tambien `src/data/` (mocks de la app) y rompia el build de Render → se cambio a `/data/` (solo raiz).
+2. `bun.lock` desactualizado (de AI Studio) hacia fallar el build de Cloudflare (`bun install --frozen-lockfile`) → retirado; estandarizado en npm.
+3. `npm start` con `node server.ts` no resuelve imports `.js` → `.ts` en Node → arranque con `tsx` (movido a dependencias de runtime).
+4. CORS ausente: el front de Pages llama a la API de Render (cross-origin) → middleware `Access-Control-Allow-Origin` para `ALLOWED_ORIGINS` + `*.pages.dev`, con preflight OPTIONS.
+5. `VITE_API_URL` soportado en `aurafinApi.ts` para despliegues en CDN.
+6. dotenv se movio a `server/config.ts` (los imports ESM se evaluan antes del cuerpo del modulo).
+7. Doble codificacion de valores en filtros PostgREST (`encodeURIComponent` + `URLSearchParams`) impedia el login.
+
+## Checklist de produccion verificado
+
+- [x] Render `aurafin-ai` Live (commit CORS), `/api/health` con nube disponible
+- [x] Cloudflare Pages `aurafin.pages.dev` desplegado (build npm run build → dist)
+- [x] Login superadmin y login de empresa en produccion OK
+- [x] Sync dual-write: version incrementada, `nubeOk:true`, `espejoLocalOk:true`
+- [x] Aislamiento: usuario de empresa A recibe 403 al listar usuarios de empresa B
+- [x] CORS preflight desde origen pages.dev: cabecera ACAO presente
+- [x] Login real desde la UI de Pages (sesion multiempresa funcionando)
+
+## Pendientes recomendados
+
+- Mover el superadmin a una contrasena fuerte (credencial por defecto `AuraFin2026!`).
+- Disco persistente en Render (plan pago) si se quiere espejo server-side; hoy el espejo real vive en G: y la nube es la fuente de verdad.
+- Migrar logo a Supabase Storage cuando los logos superen ~1 MB.
