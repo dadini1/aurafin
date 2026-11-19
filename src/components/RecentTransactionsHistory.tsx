@@ -646,7 +646,7 @@ export const RecentTransactionsHistory: React.FC<RecentTransactionsHistoryProps>
                             : isNitido ? 'text-slate-900' : 'text-white'
                         }`}
                       >
-                        {isIncome ? '+' : '-'}{profile.currencySymbol}{payment.amount.toLocaleString()}
+                        {isIncome ? '+' : '-'}{profile.currencySymbol}{Number(payment.amount || 0).toLocaleString()}
                       </span>
                       <span className={`text-[10px] font-bold ${isIncome ? 'text-emerald-600' : 'text-slate-500'}`}>
                         {isIncome ? 'Ingreso' : payment.isFixed ? 'Gasto Fijo' : 'Gasto Variable'}

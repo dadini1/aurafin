@@ -167,3 +167,24 @@ modales correcto en móvil; las pestañas lazy cargan con skeleton y renderizan.
 - El gating de funciones es de interfaz: los endpoints de IA siguen abiertos a cualquier sesión válida. Para cerrarlo, validar `resolverFunciones(empresaId).funciones.ia` en las rutas `/api/assistant/*`.
 - `RESEND_API_KEY` aún no configurada en Render: el correo se entrega por enlace `mailto:`; WhatsApp funciona con enlace `wa.me`.
 - `solo-finanzas` quedó como plan de ejemplo inactivo en Supabase (no visible al público).
+
+## Motor IA de respaldo (analizador local en español)
+
+`GEMINI_API_KEY` no está configurada en Render ni en local. Para que el dictado
+nunca se quede sin registrar, `/api/assistant/process-note` usa
+`server/ia/analisisLocal.ts` cuando falta la clave o cuando Gemini falla:
+
+- Resuelve fechas ("17 de noviembre", "17/11", "ayer", "hoy") al año actual.
+- Extrae el monto sin confundirlo con el día ni con plazos ("en 10 meses").
+- Clasifica la categoría (alquiler, servicios, transporte, alimentación, salud, educación, ocio, sueldo, freelance).
+- Detecta beneficiario (prioriza la agenda de contactos) y detalle del pago.
+- Distingue pagado ("pagué", "cancelé", "cobré") de pendiente ("hay que pagar", "vence").
+- Auto-adjunta archivos por palabras clave y devuelve `section` para el salto de pestaña.
+
+Probado de punta a punta: "El 17 de noviembre le pagué el alquiler de 650 a
+Richar, hijo del dueño del edificio" → gasto `alquiler`, `2026-11-17`, `pagado`,
+beneficiario `Richar`, contacto y contrato adjuntos, salto automático a Finanzas.
+
+Además se normalizan los pagos heredados (`monto`/`fecha`/`tipo`) con
+`src/utils/pagos.ts`: un registro antiguo con `monto` rompía el render de
+`RecentTransactionsHistory` (`undefined.toLocaleString`).

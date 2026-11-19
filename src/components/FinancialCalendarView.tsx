@@ -970,6 +970,13 @@ export const FinancialCalendarView: React.FC<FinancialCalendarViewProps> = ({
                               {p.merchant}
                             </span>
                           )}
+                          {p.beneficiary && (
+                            <span className={`text-[10px] px-2 py-0.5 rounded-md border ${
+                              isNitido ? 'text-violet-800 bg-violet-50 border-violet-200' : 'text-violet-300 bg-violet-950/60 border-violet-800/40'
+                            }`}>
+                              👤 {p.beneficiary}
+                            </span>
+                          )}
                           {p.receiptImage && (
                             <button
                               type="button"
@@ -1203,9 +1210,18 @@ export const FinancialCalendarView: React.FC<FinancialCalendarViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Merchant and Items Breakdown */}
-                      {(p.merchant || (p.itemsBreakdown && p.itemsBreakdown.length > 0)) && (
+                      {/* Beneficiario, detalle, establecimiento y desglose */}
+                      {(p.merchant || p.beneficiary || p.detail || (p.itemsBreakdown && p.itemsBreakdown.length > 0)) && (
                         <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-1.5">
+                          {p.beneficiary && (
+                            <div className="flex items-center gap-2 text-slate-300">
+                              <span className="text-slate-500">Beneficiario:</span>
+                              <span className="font-semibold text-white">👤 {p.beneficiary}</span>
+                            </div>
+                          )}
+                          {p.detail && (
+                            <p className="text-slate-400 leading-snug">{p.detail}</p>
+                          )}
                           {p.merchant && (
                             <div className="flex items-center gap-2 text-slate-300">
                               <span className="text-slate-500">Establecimiento:</span>

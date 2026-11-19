@@ -1294,7 +1294,7 @@ export const FinancesTab: React.FC<FinancesTabProps> = ({
 
                       <div className={`flex items-center gap-3 text-xs mt-1 flex-wrap ${isNitido ? 'text-slate-600' : 'text-slate-400'}`}>
                         <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" /> Vence: {payment.dueDate}
+                          <Calendar className="w-3.5 h-3.5" /> {payment.status === 'pagado' ? 'Pagado:' : 'Vence:'} {payment.dueDate}
                         </span>
                         <span>·</span>
                         <span className="capitalize">{payment.frequency}</span>

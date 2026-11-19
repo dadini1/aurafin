@@ -35,6 +35,7 @@ import {
   DEFAULT_GLOBAL_ALERT_THRESHOLD,
 } from './data/mockDeviceData';
 import { tabsPermitidos } from './config/navigation';
+import { normalizarPagos } from './utils/pagos';
 import { Header } from './components/Header';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
 import { NotesTab } from './components/NotesTab';
@@ -132,7 +133,7 @@ export default function App() {
   const [payments, setPayments] = useState<PaymentItem[]>(() => {
     try {
       const saved = localStorage.getItem('aurafin_payments');
-      return saved ? JSON.parse(saved) : INITIAL_PAYMENTS;
+      return saved ? normalizarPagos(JSON.parse(saved)) : INITIAL_PAYMENTS;
     } catch {
       return INITIAL_PAYMENTS;
     }
@@ -248,7 +249,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = realtimeSync.subscribe((payload) => {
       if (payload.type === 'PAYMENTS' && Array.isArray(payload.data)) {
-        setPayments(payload.data);
+        setPayments(normalizarPagos(payload.data));
       } else if (payload.type === 'NOTES' && Array.isArray(payload.data)) {
         setNotes(payload.data);
       } else if (payload.type === 'GOALS' && Array.isArray(payload.data)) {
@@ -258,7 +259,7 @@ export default function App() {
       } else if (payload.type === 'PROFILE' && payload.data) {
         setProfile((prev) => ({ ...prev, ...payload.data }));
       } else if (payload.type === 'FULL_SYNC' && payload.data) {
-        if (payload.data.payments) setPayments(payload.data.payments);
+        if (payload.data.payments) setPayments(normalizarPagos(payload.data.payments));
         if (payload.data.notes) setNotes(payload.data.notes);
         if (payload.data.goals) setGoals(payload.data.goals);
         if (payload.data.categoryBudgets) setCategoryBudgets(payload.data.categoryBudgets);

@@ -10,6 +10,7 @@ import routerSincronizacion, { cargarLegado, persistirLegado } from './server/ru
 import { diagnosticoLocal } from './server/almacenamiento/almacenLocal.js';
 import { iniciarReconciliacion, detenerReconciliacion, estadoSincronizacion } from './server/almacenamiento/motorSincronizacion.js';
 import { saludSupabase, supabaseDisponible } from './server/almacenamiento/almacenSupabase.js';
+import { analizarEntradaLocal, type ArchivoDisponible, type ContactoDisponible } from './server/ia/analisisLocal.js';
 
 dotenv.config();
 
@@ -125,6 +126,9 @@ app.get('/api/health', async (_req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     entorno: config.entorno,
+    ia: {
+      motor: process.env.GEMINI_API_KEY ? 'gemini' : 'local',
+    },
     almacenamiento: {
       nube: { habilitada: supabaseDisponible(), disponible: saludNube.disponible },
       disco: diagnosticoLocal(),
@@ -142,6 +146,23 @@ app.post('/api/assistant/process-note', rateLimit(30), async (req, res) => {
 
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'Texto o transcripción requerida' });
+    }
+
+    // Sin clave de Gemini el sistema no puede quedarse sin registrar el
+    // dictado: el analizador local extrae monto, fecha, categoría,
+    // beneficiario, detalle y si el pago ya se realizó.
+    if (!process.env.GEMINI_API_KEY) {
+      const local = analizarEntradaLocal({
+        text,
+        availableFiles: availableFiles as ArchivoDisponible[],
+        availableContacts: availableContacts as ContactoDisponible[],
+      });
+      return res.json({
+        success: true,
+        motor: 'local',
+        aviso: 'Análisis local: configura GEMINI_API_KEY para el modo IA completo.',
+        result: local,
+      });
     }
 
     const ai = getGeminiClient();
@@ -298,10 +319,27 @@ Tu tarea es:
     });
 
     const parsed = JSON.parse(response.text || '{}');
-    res.json({ success: true, result: parsed });
+    res.json({ success: true, motor: 'gemini', result: parsed });
   } catch (err: any) {
     console.error('Error processing note:', err);
-    res.status(500).json({ error: err.message || 'Error al procesar la entrada con IA' });
+    // Respaldo: si Gemini falla (cuota, red, credenciales) el dictado se
+    // registra igual con el analizador local.
+    try {
+      const local = analizarEntradaLocal({
+        text: String(req.body?.text || ''),
+        availableFiles: (req.body?.availableFiles || []) as ArchivoDisponible[],
+        availableContacts: (req.body?.availableContacts || []) as ContactoDisponible[],
+      });
+      return res.json({
+        success: true,
+        motor: 'local',
+        aviso: 'Gemini no respondió; se usó el análisis local.',
+        result: local,
+      });
+    } catch (falloLocal) {
+      console.error('Error en análisis local:', falloLocal);
+      return res.status(500).json({ error: err.message || 'Error al procesar la entrada con IA' });
+    }
   }
 });
 
