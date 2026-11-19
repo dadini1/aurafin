@@ -6,6 +6,9 @@ import type { PaymentItem } from '../types';
  *
  * Sin esto un registro heredado con `monto` en lugar de `amount` deja
  * `payment.amount` en `undefined` y rompe el render (`toLocaleString`).
+ *
+ * Se aplica al cargar de localStorage, al recibir PAYMENTS/FULL_SYNC y al
+ * registrar un pago nuevo desde el asistente.
  */
 type PagoCrudo = Record<string, unknown>;
 
