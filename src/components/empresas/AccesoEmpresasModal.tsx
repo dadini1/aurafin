@@ -64,8 +64,8 @@ export const AccesoEmpresasModal: React.FC<Props> = ({ abierto, onCerrar, onExit
             </Select>
           </Field>
         )}
-        <Field label="Correo corporativo">
-          <Input type="email" autoComplete="email" value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="usuario@empresa.com" />
+        <Field label="Usuario o correo">
+          <Input type="text" autoComplete="username" value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="Admin o usuario@empresa.com" />
         </Field>
         <Field label="Contraseña">
           <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />

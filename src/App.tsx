@@ -225,6 +225,11 @@ export default function App() {
   useEffect(() => {
     if (autenticado && debeCambiarPassword) setCambioPasswordAbierto(true);
   }, [autenticado, debeCambiarPassword]);
+
+  // Al completarse el cambio, el modal obligatorio se cierra.
+  useEffect(() => {
+    if (!debeCambiarPassword) setCambioPasswordAbierto(false);
+  }, [debeCambiarPassword]);
   const [voiceInitialText, setVoiceInitialText] = useState('');
   const [voiceAudioEnabled, setVoiceAudioEnabled] = useState(true);
   const [previewFile, setPreviewFile] = useState<DeviceFile | null>(null);
