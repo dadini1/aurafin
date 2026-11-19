@@ -20,6 +20,8 @@ export interface ProcessNoteResult {
   formattedContent: string;
   tags: string[];
   category: string;
+  /** Sección a la que el asistente debe redirigir al usuario. */
+  section?: 'finanzas' | 'notas' | 'radar' | 'galeria' | 'voz_analitica';
   detectedPayment: {
     hasPayment: boolean;
     title?: string;
@@ -29,6 +31,12 @@ export interface ProcessNoteResult {
     category?: string;
     frequency?: string;
     dueDate?: string;
+    /** Persona o entidad que recibe el pago. */
+    beneficiary?: string;
+    /** Detalle breve del pago. */
+    detail?: string;
+    /** true si el usuario dijo que ya lo pagó. */
+    paid?: boolean;
   };
   detectedGoal: {
     hasGoal: boolean;

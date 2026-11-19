@@ -468,7 +468,10 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
           category: (result.detectedPayment.category as any) || 'otro',
           frequency: (result.detectedPayment.frequency as any) || 'mensual',
           dueDate: result.detectedPayment.dueDate || new Date().toISOString().split('T')[0],
-          status: 'pendiente',
+          // "Se pagó" → pagado; pago programado/futuro → pendiente
+          status: result.detectedPayment.paid ? 'pagado' : 'pendiente',
+          beneficiary: result.detectedPayment.beneficiary || undefined,
+          detail: result.detectedPayment.detail || result.formattedContent,
           noteId: noteId,
           matchedFileIds: result.matchedFileIds || [],
           matchedContactIds: result.matchedContactIds || [],

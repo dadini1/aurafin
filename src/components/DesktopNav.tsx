@@ -1,5 +1,5 @@
 import React from 'react';
-import { MAIN_TABS, type MainTabKey } from '../config/navigation';
+import { MAIN_TABS, type MainTabKey, type TabDefinition } from '../config/navigation';
 
 interface DesktopNavProps {
   activeTab: MainTabKey;
@@ -9,6 +9,8 @@ interface DesktopNavProps {
   filesCount: number;
   activeAlertsCount?: number;
   country: string;
+  /** Pestañas permitidas por la suscripción (por defecto todas). */
+  tabs?: TabDefinition[];
 }
 
 /**
@@ -24,6 +26,7 @@ export const DesktopNav: React.FC<DesktopNavProps> = ({
   filesCount,
   activeAlertsCount = 0,
   country,
+  tabs = MAIN_TABS,
 }) => {
   const countFor = (key: MainTabKey): number | null => {
     if (key === 'notes') return notesCount;
@@ -36,7 +39,7 @@ export const DesktopNav: React.FC<DesktopNavProps> = ({
     <div className="hidden lg:block sticky top-16 z-20 backdrop-blur-xl bg-[var(--surface-glass)] border-b border-[var(--border-subtle)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <nav aria-label="Secciones principales" className="flex gap-1.5 overflow-x-auto py-2 no-scrollbar">
-          {MAIN_TABS.map((tab) => {
+          {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.key;
             const count = countFor(tab.key);

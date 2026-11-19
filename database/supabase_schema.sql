@@ -23,12 +23,19 @@ create table if not exists public.usuarios_empresa (
   id            uuid primary key default gen_random_uuid(),
   empresa_id    uuid not null references public.empresas(id) on delete cascade,
   correo        text not null,
+  usuario       text not null default '',                   -- nombre de usuario (p. ej. Admin del sistema)
+  telefono_whatsapp text not null default '',               -- teléfono para envío de contraseña temporal
+  debe_cambiar_password boolean not null default false,     -- fuerza cambio en el próximo ingreso
   nombre        text not null,
   password_hash text not null,                             -- scrypt:sal:hash (servidor AuraFin)
   rol           text not null check (rol in ('superadmin','dueno','admin_empresa','empleado','lectura')),
   estado        text not null default 'activo' check (estado in ('activo','inactivo')),
   created_at    timestamptz not null default now()
 );
+
+-- Usuario (Admin) y correo únicos, sin importar mayúsculas/minúsculas.
+create unique index if not exists uq_usuarios_usuario
+  on public.usuarios_empresa (lower(usuario)) where usuario <> '';
 
 -- "Carpeta" de datos financieros por empresa (payload completo del sync)
 create table if not exists public.datos_financieros (
@@ -42,6 +49,38 @@ create table if not exists public.datos_financieros (
 create index if not exists idx_usuarios_empresa     on public.usuarios_empresa (empresa_id);
 create index if not exists idx_usuarios_empresa_correo on public.usuarios_empresa (lower(correo));
 create index if not exists idx_empresas_estado      on public.empresas (estado);
+
+-- ============================================================
+-- Planes de suscripción y funciones activables
+-- ============================================================
+create table if not exists public.planes (
+  id            uuid primary key default gen_random_uuid(),
+  slug          text not null unique check (slug ~ '^[a-z0-9][a-z0-9-]{1,38}$'),
+  nombre        text not null,
+  precio        numeric(12,2) not null default 0,
+  moneda        text not null default 'USD',
+  duracion_dias integer not null default 30 check (duracion_dias > 0),
+  -- Funciones activadas por el plan (7 claves):
+  --   finanzas, notas, voz_analitica, radar, galeria, app_movil, ia
+  features      jsonb not null default '{}',
+  estado        text not null default 'activo' check (estado in ('activo','inactivo')),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create table if not exists public.suscripciones (
+  id           uuid primary key default gen_random_uuid(),
+  empresa_id   uuid not null references public.empresas(id) on delete cascade,
+  plan_id      uuid not null references public.planes(id) on delete restrict,
+  estado       text not null default 'activa' check (estado in ('activa','cancelada','vencida')),
+  fecha_inicio timestamptz not null default now(),
+  fecha_fin    timestamptz,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists idx_suscripciones_empresa on public.suscripciones (empresa_id);
+create index if not exists idx_suscripciones_plan    on public.suscripciones (plan_id);
+create index if not exists idx_planes_estado         on public.planes (estado);
 
 -- updated_at automático
 create or replace function public.set_updated_at()
@@ -61,6 +100,11 @@ create trigger trg_datos_updated
   before update on public.datos_financieros
   for each row execute function public.set_updated_at();
 
+drop trigger if exists trg_planes_updated on public.planes;
+create trigger trg_planes_updated
+  before update on public.planes
+  for each row execute function public.set_updated_at();
+
 -- ============================================================
 -- Seguridad (RLS)
 -- El backend usa la service_role key, que salta RLS. Estas
@@ -70,12 +114,20 @@ create trigger trg_datos_updated
 alter table public.empresas          enable row level security;
 alter table public.usuarios_empresa  enable row level security;
 alter table public.datos_financieros enable row level security;
+alter table public.planes            enable row level security;
+alter table public.suscripciones     enable row level security;
 
 -- Marca pública de empresas activas (pantalla de acceso y theming)
 drop policy if exists "lectura_publica_marca" on public.empresas;
 create policy "lectura_publica_marca"
   on public.empresas for select
   using (estado = 'activa');
+
+-- Catálogo de planes: lectura pública solo de los activos
+drop policy if exists "lectura_publica_planes_activos" on public.planes;
+create policy "lectura_publica_planes_activos"
+  on public.planes for select
+  using (estado = 'activo');
 
 -- Datos y usuarios: sin políticas públicas; el acceso directo requiere
 -- un JWT con empresa_id (se agrega al migrar la auth a Supabase Auth).

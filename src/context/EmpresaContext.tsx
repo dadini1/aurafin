@@ -14,7 +14,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { aurafinApi, sesion, type MarcaEmpresa, type UsuarioSesion } from '../services/aurafinApi';
+import { aurafinApi, sesion, type FuncionesPlan, type MarcaEmpresa, type PlanSuscripcion, type UsuarioSesion } from '../services/aurafinApi';
 
 const MARCA_POR_DEFECTO: MarcaEmpresa = {
   slug: 'aurafin',
@@ -28,11 +28,18 @@ interface EstadoContexto {
   usuario: UsuarioSesion | null;
   autenticado: boolean;
   esAdministrador: boolean;
+  esDuenoSistema: boolean;
   iniciando: boolean;
-  iniciarSesion: (correo: string, password: string) => Promise<void>;
+  /** null = sin datos de suscripción (modo local). {} = sin plan activo. */
+  funciones: FuncionesPlan | null;
+  plan: PlanSuscripcion | null;
+  debeCambiarPassword: boolean;
+  iniciarSesion: (correo: string, password: string) => Promise<UsuarioSesion>;
   cerrarSesion: () => void;
   refrescarMarca: (slug?: string) => Promise<void>;
   actualizarMarcaLocal: (marca: MarcaEmpresa) => void;
+  refrescarSuscripcion: () => Promise<void>;
+  cambiarPassword: (passwordActual: string, passwordNueva: string) => Promise<void>;
 }
 
 const ContextoEmpresa = createContext<EstadoContexto | null>(null);
@@ -84,6 +91,9 @@ function aplicarMarca(marca: MarcaEmpresa): void {
 export function ProveedorEmpresa({ children }: { children: ReactNode }) {
   const [empresa, setEmpresa] = useState<MarcaEmpresa>(() => sesion.obtenerEmpresa() || MARCA_POR_DEFECTO);
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(() => sesion.obtenerUsuario());
+  const [funciones, setFunciones] = useState<FuncionesPlan | null>(() => sesion.obtenerFunciones() ?? null);
+  const [plan, setPlan] = useState<PlanSuscripcion | null>(() => sesion.obtenerPlan());
+  const [debeCambiarPassword, setDebeCambiarPassword] = useState(() => Boolean(sesion.obtenerUsuario()?.debeCambiarPassword));
   const [iniciando, setIniciando] = useState(true);
 
   // Aplica el branding persistido y refresca la marca desde la nube al arrancar.
@@ -96,8 +106,9 @@ export function ProveedorEmpresa({ children }: { children: ReactNode }) {
         .obtenerMarca(slug)
         .then((r) => {
           if (r.empresa) {
-            setEmpresa(r.empresa);
-            aplicarMarca(r.empresa);
+            const conId = { ...r.empresa, id: r.empresa.id || empresa.id };
+            setEmpresa(conId);
+            aplicarMarca(conId);
           }
         })
         .catch(() => {
@@ -107,12 +118,22 @@ export function ProveedorEmpresa({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sesiones anteriores sin datos de suscripción: los carga una vez.
+  useEffect(() => {
+    if (usuario && funciones === null) void refrescarSuscripcion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario, funciones]);
+
   const iniciarSesion = useCallback(async (correo: string, password: string) => {
     const respuesta = await aurafinApi.iniciarSesion(correo, password);
-    sesion.guardar(respuesta.token, respuesta.usuario, respuesta.empresa);
+    sesion.guardar(respuesta.token, respuesta.usuario, respuesta.empresa, respuesta.funciones ?? undefined, respuesta.plan ?? null);
     setUsuario(respuesta.usuario);
     setEmpresa(respuesta.empresa);
     aplicarMarca(respuesta.empresa);
+    setFunciones(respuesta.funciones ?? null);
+    setPlan(respuesta.plan ?? null);
+    setDebeCambiarPassword(Boolean(respuesta.usuario.debeCambiarPassword));
+    return respuesta.usuario;
   }, []);
 
   const cerrarSesion = useCallback(() => {
@@ -120,7 +141,39 @@ export function ProveedorEmpresa({ children }: { children: ReactNode }) {
     setUsuario(null);
     setEmpresa(MARCA_POR_DEFECTO);
     aplicarMarca(MARCA_POR_DEFECTO);
+    setFunciones(null);
+    setPlan(null);
+    setDebeCambiarPassword(false);
   }, []);
+
+  /** Relee plan y funciones activas (tras cambiar de suscripción). */
+  const refrescarSuscripcion = useCallback(async () => {
+    const actual = sesion.obtenerUsuario();
+    const marca = sesion.obtenerEmpresa();
+    if (!actual || !marca) return;
+    const id = marca.id;
+    if (!id) return;
+    try {
+      const r = await aurafinApi.obtenerSuscripcion(id);
+      setFunciones(r.features || {});
+      setPlan(r.plan);
+      sesion.guardar(sesion.obtenerToken()!, actual, marca, r.features || {}, r.plan);
+    } catch {
+      // sin cambios si la nube no responde
+    }
+  }, []);
+
+  const cambiarPassword = useCallback(async (passwordActual: string, passwordNueva: string) => {
+    await aurafinApi.cambiarPassword(passwordActual, passwordNueva);
+    const actual = sesion.obtenerUsuario();
+    const marca = sesion.obtenerEmpresa();
+    if (actual && marca) {
+      const actualizado = { ...actual, debeCambiarPassword: false };
+      setUsuario(actualizado);
+      sesion.guardar(sesion.obtenerToken()!, actualizado, marca, funciones ?? undefined, plan);
+    }
+    setDebeCambiarPassword(false);
+  }, [funciones, plan]);
 
   const refrescarMarca = useCallback(async (slug?: string) => {
     const objetivo = slug || empresa.slug;
@@ -143,19 +196,27 @@ export function ProveedorEmpresa({ children }: { children: ReactNode }) {
     [usuario]
   );
 
+  const esDuenoSistema = useMemo(() => usuario?.rol === 'superadmin', [usuario]);
+
   const valor = useMemo<EstadoContexto>(
     () => ({
       empresa,
       usuario,
       autenticado: Boolean(usuario),
       esAdministrador,
+      esDuenoSistema,
       iniciando,
+      funciones,
+      plan,
+      debeCambiarPassword,
       iniciarSesion,
       cerrarSesion,
       refrescarMarca,
       actualizarMarcaLocal,
+      refrescarSuscripcion,
+      cambiarPassword,
     }),
-    [empresa, usuario, esAdministrador, iniciando, iniciarSesion, cerrarSesion, refrescarMarca, actualizarMarcaLocal]
+    [empresa, usuario, esAdministrador, esDuenoSistema, iniciando, funciones, plan, debeCambiarPassword, iniciarSesion, cerrarSesion, refrescarMarca, actualizarMarcaLocal, refrescarSuscripcion, cambiarPassword]
   );
 
   return <ContextoEmpresa.Provider value={valor}>{children}</ContextoEmpresa.Provider>;

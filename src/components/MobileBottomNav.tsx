@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, ScanLine, MoreHorizontal, X } from 'lucide-react';
-import { MAIN_TABS, getTab, type MainTabKey } from '../config/navigation';
+import { MAIN_TABS, getTab, type MainTabKey, type TabDefinition } from '../config/navigation';
 
 export type { MainTabKey };
 
@@ -14,6 +14,8 @@ interface MobileBottomNavProps {
   paymentsCount?: number;
   showFloatingAI: boolean;
   onToggleFloatingAI: (show: boolean) => void;
+  /** Pestañas permitidas por la suscripción (por defecto todas). */
+  tabs?: TabDefinition[];
 }
 
 /** Pestañas primarias de la barra inferior; el resto vive en "Más". */
@@ -26,10 +28,16 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenScanner,
   activeAlertsCount = 0,
   notesCount = 0,
+  tabs = MAIN_TABS,
 }) => {
+  const permitidas = new Set(tabs.map((t) => t.key));
+  const overflowKeys = [
+    ...OVERFLOW_KEYS.filter((k) => permitidas.has(k)),
+    ...tabs.map((t) => t.key).filter((k) => !PRIMARY_KEYS.includes(k) && !OVERFLOW_KEYS.includes(k)),
+  ];
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
-  const isOverflowActive = OVERFLOW_KEYS.includes(activeTab);
+  const isOverflowActive = overflowKeys.includes(activeTab);
 
   useEffect(() => {
     if (!isMoreOpen) return;
@@ -100,7 +108,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-          {OVERFLOW_KEYS.map((key) => {
+          {overflowKeys.map((key) => {
             const tab = getTab(key);
             const Icon = tab.icon;
             const isActive = activeTab === key;
@@ -130,8 +138,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       )}
 
       <div className="max-w-md mx-auto px-3 pt-1.5 pb-1 flex items-end justify-between gap-1" ref={moreRef}>
-        <TabButton tabKey="finances" />
-        <TabButton tabKey="notes" />
+        {permitidas.has('finances') && <TabButton tabKey="finances" />}
+        {permitidas.has('notes') && <TabButton tabKey="notes" />}
 
         {/* Escáner de recibos (acción central destacada) */}
         <div className="flex flex-col items-center justify-center px-1">
@@ -168,9 +176,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           </span>
         </div>
 
-        <TabButton tabKey="radar" />
+        {permitidas.has('radar') && <TabButton tabKey="radar" />}
 
-        {/* Más: Analytics, Galería y App */}
+        {/* Más: Analytics, Galería y App (solo las activas por el plan) */}
+        {overflowKeys.length > 0 && (
         <button
           type="button"
           onClick={() => setIsMoreOpen(!isMoreOpen)}
@@ -188,6 +197,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             {isOverflowActive ? getTab(activeTab).shortLabel : 'Más'}
           </span>
         </button>
+        )}
       </div>
     </div>
   );

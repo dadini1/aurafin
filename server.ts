@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 import { config } from './server/config.js';
 import routerEmpresas, { asegurarSuperadminInicial } from './server/rutas/empresas.js';
+import routerPlanes from './server/rutas/planes.js';
 import routerSincronizacion, { cargarLegado, persistirLegado } from './server/rutas/sincronizacion.js';
 import { diagnosticoLocal } from './server/almacenamiento/almacenLocal.js';
 import { iniciarReconciliacion, detenerReconciliacion, estadoSincronizacion } from './server/almacenamiento/motorSincronizacion.js';
@@ -144,8 +145,12 @@ app.post('/api/assistant/process-note', rateLimit(30), async (req, res) => {
     }
 
     const ai = getGeminiClient();
+    const hoyISO = new Date().toISOString().split('T')[0];
+    const anioActual = new Date().getFullYear();
 
     const prompt = `Eres AuraFin AI, un asistente virtual avanzado en español para reconocimiento de voz inteligente, organización de notas con auto-adjuntos de galería y asesoría financiera.
+HOY ES ${hoyISO} (año actual ${anioActual}). Usa esta fecha para resolver expresiones relativas como "ayer", "el 17 de noviembre" o "el próximo lunes" en fechas ISO YYYY-MM-DD. Si se menciona día y mes sin año y esa fecha ya pasó este año, usa el año actual (no el siguiente); si aún no ha llegado, también el año actual.
+
 El usuario ha dictado o escrito la siguiente entrada:
 "${text}"
 
@@ -158,19 +163,26 @@ ${JSON.stringify(availableContacts.map((c: any) => ({ id: c.id, name: c.name, ph
 Tu tarea es:
 1. DIFERENCIAR EL TIPO DE ENTRADA (INTENCIÓN):
    - 'nota': Apuntes, ideas, reuniones, recordatorios o acuerdos.
-   - 'transaccion': Registro directo de pagos o gastos fijos/variables ("Pagar 650 de alquiler", "Gasté 40 en gasolina", "Cobré 2000").
+   - 'transaccion': Registro directo de pagos o gastos fijos/variables ("Pagar 650 de alquiler", "Gasté 40 en gasolina", "Cobré 2000", "El 17 de noviembre le pagué el alquiler a Richar, hijo del dueño del edificio").
    - 'meta_ahorro': Metas de ahorro ("Quiero ahorrar $5,000 para el enganche de un auto", "Crear meta de fondo de emergencia de $3,000 en 6 meses").
    - 'consulta': Pregunta o solicitud de asesoramiento financiero ("¿Me conviene comprar un auto?", "¿Cómo administro mi dinero?").
 2. Generar un título conciso, profesional y atractivo.
 3. Formatear y limpiar el contenido de la nota (destacando datos clave).
 4. Generar etiquetas inteligentes enriquecidas ('#...') incluyendo categorías, estado financiero y palabras clave.
 5. Determinar la categoría principal ('finanzas', 'vivienda', 'transporte', 'trabajo', 'personal', 'salud', 'general', 'meta_ahorro').
-6. DETECTAR TRANSACCIÓN FINANCIERA (si aplica): monto, tipo ('gasto' | 'ingreso'), si es fijo o variable, periodicidad, fecha límite y categoría.
+6. DETECTAR TRANSACCIÓN FINANCIERA (si aplica): monto, tipo ('gasto' | 'ingreso'), si es fijo o variable, periodicidad, fecha (dueDate en YYYY-MM-DD), categoría, BENEFICIARIO y DETALLE.
+   - BENEFICIARIO ("beneficiary"): persona o entidad que recibe/cobra el pago (ej. "Richar, hijo del dueño del edificio"). Si no se menciona, cadena vacía.
+   - DETALLE ("detail"): frase breve con el contexto útil del pago (ej. "Alquiler de noviembre pagado a Richar, hijo del dueño del edificio").
+   - ESTADO ("paid"): true si el usuario dice que YA se pagó/cobró (pasado: "pagué", "se pagó", "le di", "cancelé"); false si es un pago programado o futuro ("hay que pagar", "vence el...").
+   - CATEGORÍA: usa 'alquiler' para renta/alquiler de vivienda o local, 'servicios' para luz/agua/internet, 'transporte' para gasolina/taxi, 'alimentacion', 'ocio', 'salud', 'educacion', 'sueldo'/'freelance' para ingresos y 'otro' si no encaja.
+   - Si el texto menciona un monto sin unidad ("650 de alquiler"), asume la moneda del usuario y registra 650.
 7. DETECTAR META DE AHORRO (si aplica): monto objetivo, título, categoría ('auto', 'vivienda', 'emergencia', 'retiro', 'viaje', 'otro'), plazo o fecha límite estimada y contribución mensual sugerida.
 8. AUTO-ADJUNTAR ARCHIVOS Y CONTACTOS AUTOMÁTICAMENTE:
    - Analiza el texto y selecciona los IDs de archivos de la galería que corresponden al contenido (facturas si habla de taller/compras, cotizaciones de departamentos si habla de alquiler o casa, recibos de servicios, fotos de vehículos).
+   - Si el beneficiario coincide con un contacto de la agenda, inclúyelo en matchedContactIds.
    - Asigna un puntaje de confianza (0 a 100), palabras clave coincidentes y justificación explícita de por qué se auto-adjuntó cada archivo y contacto.
-9. Generar una respuesta conversacional concisa en español (1-2 frases) que el asistente leerá en voz alta.`;
+9. ENRUTAR A LA SECCIÓN CORRECTA ("section"): 'finanzas' si hay transacción o meta de ahorro, 'notas' si es una nota/recordatorio, 'radar' si busca vehículos o inmuebles, 'galeria' si trata de archivos/contactos, 'voz_analitica' si pregunta por métricas de voz.
+10. Generar una respuesta conversacional concisa en español (1-2 frases) que el asistente leerá en voz alta, confirmando lo registrado y en qué sección quedó (ej. "Listo, registré el pago de alquiler de noviembre a Richar en Finanzas").`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
@@ -192,6 +204,10 @@ Tu tarea es:
               description: 'Etiquetas inteligentes',
             },
             category: { type: Type.STRING, description: 'Categoría principal' },
+            section: {
+              type: Type.STRING,
+              description: 'finanzas | notas | radar | galeria | voz_analitica',
+            },
             detectedPayment: {
               type: Type.OBJECT,
               properties: {
@@ -200,9 +216,12 @@ Tu tarea es:
                 amount: { type: Type.NUMBER },
                 type: { type: Type.STRING, description: 'gasto o ingreso' },
                 isFixed: { type: Type.BOOLEAN, description: 'true si es fijo, false si es variable' },
-                category: { type: Type.STRING, description: 'transporte, alquiler, alimentacion, servicios, etc.' },
+                category: { type: Type.STRING, description: 'alquiler, transporte, alimentacion, servicios, ocio, salud, educacion, sueldo, freelance, otro' },
                 frequency: { type: Type.STRING, description: 'unico, mensual, quincenal, anual' },
                 dueDate: { type: Type.STRING, description: 'YYYY-MM-DD' },
+                beneficiary: { type: Type.STRING, description: 'Persona o entidad que recibe el pago' },
+                detail: { type: Type.STRING, description: 'Detalle breve con contexto del pago' },
+                paid: { type: Type.BOOLEAN, description: 'true si ya se pagó; false si está programado' },
               },
               required: ['hasPayment'],
             },
@@ -266,6 +285,7 @@ Tu tarea es:
             'formattedContent',
             'tags',
             'category',
+            'section',
             'detectedPayment',
             'detectedGoal',
             'matchedFileIds',
@@ -765,6 +785,7 @@ Analiza la imagen adjunta de este recibo o ticket físico de compra y extrae con
  */
 app.use('/api', routerSincronizacion);
 app.use('/api', routerEmpresas);
+app.use('/api', routerPlanes);
 
 /**
  * 8. Ruta heredada de APK: el antiguo endpoint generaba un archivo de texto

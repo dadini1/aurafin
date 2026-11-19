@@ -100,6 +100,10 @@ export interface PaymentItem {
   matchedContactIds?: string[];
   receiptImage?: string;
   merchant?: string;
+  /** Persona o entidad que recibe/cobra el pago (detectada por la IA). */
+  beneficiary?: string;
+  /** Detalle breve con el contexto del pago (detectado por la IA). */
+  detail?: string;
   itemsBreakdown?: { name: string; price?: number }[];
   createdAt: string;
 }

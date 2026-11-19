@@ -150,3 +150,20 @@ modales correcto en móvil; las pestañas lazy cargan con skeleton y renderizan.
 - Mover el superadmin a una contrasena fuerte (credencial por defecto `AuraFin2026!`).
 - Disco persistente en Render (plan pago) si se quiere espejo server-side; hoy el espejo real vive en G: y la nube es la fuente de verdad.
 - Migrar logo a Supabase Storage cuando los logos superen ~1 MB.
+
+# 4ª verificación (2026-11-18) · Dueño Admin, contraseñas por WhatsApp/correo y planes
+
+## Implementado
+
+- Dueño del sistema: usuario `Admin` con contraseña temporal `Admin123!` (migración one-shot del superadmin existente; el login acepta correo o nombre de usuario).
+- Contraseñas temporales de 12 caracteres; mínimo 8 en cualquier contraseña. `debe_cambiar_password` obliga al cambio en el primer ingreso (modal no cerrable).
+- Entrega de la contraseña temporal solo al admin que la genera: enlace `wa.me` real (WhatsApp) y `mailto:` (correo), con envío real vía Resend si `RESEND_API_KEY` está definida.
+- Planes de suscripción (`planes.features` JSONB) con 7 funciones: finanzas, notas, voz_analitica, radar, galeria, app_movil, ia. CRUD y asignación por empresa desde el panel "Planes" (solo superadmin).
+- Gating en el frontend: pestañas filtradas por funciones del plan vigente; sin suscripción activa se muestra pantalla de pago. Migración `database/supabase_migracion_v2.sql` aplicada en Supabase.
+- Asistente IA enruta cada dictado a la sección correcta: extrae beneficiario, detalle, fecha resuelta y si el pago ya se realizó; al registrar un pago o meta salta automáticamente a Finanzas, las notas a Notas.
+
+## Deuda técnica reconocida
+
+- El gating de funciones es de interfaz: los endpoints de IA siguen abiertos a cualquier sesión válida. Para cerrarlo, validar `resolverFunciones(empresaId).funciones.ia` en las rutas `/api/assistant/*`.
+- `RESEND_API_KEY` aún no configurada en Render: el correo se entrega por enlace `mailto:`; WhatsApp funciona con enlace `wa.me`.
+- `solo-finanzas` quedó como plan de ejemplo inactivo en Supabase (no visible al público).

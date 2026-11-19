@@ -1,16 +1,17 @@
 /**
  * Panel de empresas afiliadas (solo superadmin/dueno):
  * - Crear / editar empresas con branding editable (logo, colores, eslogan).
- * - Gestionar usuarios y roles independientes por empresa.
+ * - Gestionar usuarios y roles independientes por empresa, con contraseña
+ *   temporal entregable por WhatsApp o correo (mín. 8 caracteres).
  * - Ver diagnóstico del sistema (nube ↔ disco G:).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Building2, Check, ImagePlus, Loader2, Palette, PlusCircle, RefreshCw,
-  Trash2, UserPlus, Activity,
+  Trash2, UserPlus, Activity, KeyRound, MessageCircle, Mail, Copy,
 } from 'lucide-react';
 import { Badge, Button, EmptyState, Field, Input, Modal, Select, SectionHeader } from '../ui';
-import { aurafinApi, type MarcaEmpresa } from '../../services/aurafinApi';
+import { aurafinApi, type EntregaPassword, type MarcaEmpresa } from '../../services/aurafinApi';
 import { useEmpresa } from '../../context/EmpresaContext';
 
 interface EmpresaAdmin extends MarcaEmpresa {
@@ -28,8 +29,11 @@ interface UsuarioEmpresa {
   id: string;
   nombre: string;
   correo: string;
+  usuario?: string;
+  telefono_whatsapp?: string;
   rol: string;
   estado: string;
+  debeCambiarPassword?: boolean;
 }
 
 const PALETA_RAPIDA = [
@@ -56,7 +60,12 @@ export const PanelEmpresasModal: React.FC<Props> = ({ abierto, onCerrar }) => {
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
   const [nueva, setNueva] = useState({ slug: '', nombre: '', eslogan: '' });
-  const [nuevoUsuario, setNuevoUsuario] = useState({ nombre: '', correo: '', password: '', rol: 'empleado' });
+  const [nuevoUsuario, setNuevoUsuario] = useState({
+    nombre: '', correo: '', usuario: '', telefono: '', password: '', rol: 'empleado', generarPassword: true,
+  });
+  const [entrega, setEntrega] = useState<EntregaPassword | null>(null);
+  const [entregaPara, setEntregaPara] = useState('');
+  const [copiado, setCopiado] = useState(false);
   const inputLogo = useRef<HTMLInputElement>(null);
 
   const cargarTodo = useCallback(async () => {
@@ -169,16 +178,58 @@ export const PanelEmpresasModal: React.FC<Props> = ({ abierto, onCerrar }) => {
   const crearUsuario = async () => {
     if (!seleccionada?.id) return;
     setError('');
+    if (!nuevoUsuario.generarPassword && nuevoUsuario.password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres (o deja que se genere una temporal).');
+      return;
+    }
     setCargando(true);
     try {
-      await aurafinApi.crearUsuario(seleccionada.id, nuevoUsuario);
-      setNuevoUsuario({ nombre: '', correo: '', password: '', rol: 'empleado' });
+      const respuesta = await aurafinApi.crearUsuario(seleccionada.id, {
+        nombre: nuevoUsuario.nombre,
+        correo: nuevoUsuario.correo,
+        usuario: nuevoUsuario.usuario,
+        telefono_whatsapp: nuevoUsuario.telefono,
+        password: nuevoUsuario.generarPassword ? undefined : nuevoUsuario.password,
+        rol: nuevoUsuario.rol,
+        generarPassword: nuevoUsuario.generarPassword,
+      });
+      setEntregaPara(nuevoUsuario.nombre || nuevoUsuario.correo);
+      setEntrega(respuesta.entrega || null);
+      setNuevoUsuario({ nombre: '', correo: '', usuario: '', telefono: '', password: '', rol: 'empleado', generarPassword: true });
       setMensaje('Usuario creado con acceso a esta empresa.');
       await cargarUsuarios(seleccionada);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear el usuario');
     } finally {
       setCargando(false);
+    }
+  };
+
+  const restablecerPassword = async (u: UsuarioEmpresa) => {
+    setError('');
+    setMensaje('');
+    setCargando(true);
+    try {
+      const respuesta = await aurafinApi.restablecerUsuario(u.id, u.telefono_whatsapp);
+      setEntregaPara(u.nombre);
+      setEntrega(respuesta.entrega);
+      setMensaje('Contraseña temporal generada. Envíala por WhatsApp o correo.');
+      if (seleccionada) await cargarUsuarios(seleccionada);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo restablecer la contraseña');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const copiarPassword = async () => {
+    if (!entrega?.passwordTemporal) return;
+    try {
+      await navigator.clipboard.writeText(entrega.passwordTemporal);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1800);
+    } catch {
+      setError('No se pudo copiar; selecciona la contraseña manualmente.');
     }
   };
 
@@ -318,20 +369,45 @@ export const PanelEmpresasModal: React.FC<Props> = ({ abierto, onCerrar }) => {
         {/* Usuarios de la empresa seleccionada */}
         {seleccionada?.id && (
           <div className="rounded-2xl border border-[var(--border-subtle)] p-4 space-y-3">
-            <SectionHeader title={`Usuarios · ${seleccionada.nombre}`} subtitle="Autorizaciones independientes por empresa" />
+            <SectionHeader title={`Usuarios · ${seleccionada.nombre}`} subtitle="Accesos independientes · contraseña temporal por WhatsApp o correo" />
             <div className="space-y-1.5">
               {usuarios.length === 0 && <p className="text-xs text-[var(--text-muted)]">Sin usuarios adicionales.</p>}
               {usuarios.map((u) => (
                 <div key={u.id} className="flex items-center justify-between gap-2 text-xs rounded-xl border border-[var(--border-subtle)] px-3 py-2">
-                  <div className="min-w-0"><p className="font-semibold truncate">{u.nombre}</p><p className="text-[var(--text-muted)] truncate">{u.correo}</p></div>
-                  <Badge tone={u.rol === 'dueno' ? 'income' : 'neutral'}>{u.rol}</Badge>
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">
+                      {u.nombre}
+                      {u.usuario && <span className="text-[var(--text-muted)] font-normal"> · @{u.usuario}</span>}
+                    </p>
+                    <p className="text-[var(--text-muted)] truncate">
+                      {u.correo}
+                      {u.telefono_whatsapp ? ` · WhatsApp ${u.telefono_whatsapp}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {u.debeCambiarPassword && <Badge tone="goal">temporal</Badge>}
+                    <Badge tone={u.rol === 'dueno' ? 'income' : 'neutral'}>{u.rol}</Badge>
+                    <Button size="sm" variant="ghost" onClick={() => restablecerPassword(u)} disabled={cargando} title="Generar contraseña temporal">
+                      <KeyRound className="w-3.5 h-3.5" /> Restablecer
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <Input placeholder="Nombre" value={nuevoUsuario.nombre} onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, nombre: e.target.value })} />
+              <Input placeholder="Usuario (opcional, ej. richar)" value={nuevoUsuario.usuario} onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, usuario: e.target.value })} />
               <Input type="email" placeholder="Correo" value={nuevoUsuario.correo} onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, correo: e.target.value })} />
-              <Input type="password" placeholder="Contraseña (8+)" value={nuevoUsuario.password} onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, password: e.target.value })} />
+              <Input placeholder="WhatsApp (ej. +59170000000)" value={nuevoUsuario.telefono} onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, telefono: e.target.value })} />
+              <Input
+                type="password"
+                placeholder="Contraseña manual (8+)"
+                value={nuevoUsuario.password}
+                onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, password: e.target.value })}
+                disabled={nuevoUsuario.generarPassword}
+                className={nuevoUsuario.generarPassword ? 'opacity-50' : ''}
+              />
               <Select value={nuevoUsuario.rol} onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, rol: e.target.value })}>
                 <option value="empleado">empleado</option>
                 <option value="lectura">lectura</option>
@@ -339,9 +415,52 @@ export const PanelEmpresasModal: React.FC<Props> = ({ abierto, onCerrar }) => {
                 <option value="dueno">dueno</option>
               </Select>
             </div>
-            <Button size="sm" variant="secondary" onClick={crearUsuario} disabled={cargando}>
+
+            <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)]">
+              <input
+                type="checkbox"
+                checked={nuevoUsuario.generarPassword}
+                onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, generarPassword: e.target.checked })}
+                className="w-4 h-4 accent-[var(--accent)]"
+              />
+              Generar contraseña temporal (mín. 8) y entregarla por WhatsApp o correo
+            </label>
+
+            <Button size="sm" variant="secondary" onClick={crearUsuario} disabled={cargando || !nuevoUsuario.nombre || !nuevoUsuario.correo}>
               <UserPlus className="w-4 h-4" /> Agregar usuario
             </Button>
+
+            {/* Entrega de la contraseña temporal (solo visible para el admin) */}
+            {entrega && (
+              <div className="rounded-xl border border-[var(--accent-border)] bg-[var(--accent-soft)] p-3 space-y-2">
+                <p className="text-xs font-bold text-[var(--accent)] flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5" /> Contraseña temporal de {entregaPara}
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="text-sm font-black tracking-wider select-all px-2 py-1 rounded bg-[var(--surface-1)] border border-[var(--border-subtle)]">
+                    {entrega.passwordTemporal}
+                  </code>
+                  <Button size="sm" variant="ghost" onClick={copiarPassword} title="Copiar contraseña">
+                    {copiado ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiado ? 'Copiada' : 'Copiar'}
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <a href={entrega.enlaceWhatsApp} target="_blank" rel="noreferrer" className="btn btn-secondary !text-xs">
+                    <MessageCircle className="w-3.5 h-3.5" /> Enviar por WhatsApp
+                  </a>
+                  <a href={entrega.enlaceCorreo} className="btn btn-secondary !text-xs">
+                    <Mail className="w-3.5 h-3.5" /> Enviar por correo
+                  </a>
+                </div>
+                <p className="text-[10px] text-[var(--text-muted)]">
+                  {entrega.correoEnviadoReal
+                    ? 'Correo enviado automáticamente vía Resend.'
+                    : 'Envío real de correo no configurado (RESEND_API_KEY): usa los botones para enviarla desde tu dispositivo.'}
+                  {' '}El usuario deberá cambiarla en su primer ingreso.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

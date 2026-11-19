@@ -1292,13 +1292,26 @@ export const FinancesTab: React.FC<FinancesTabProps> = ({
                         )}
                       </div>
 
-                      <div className={`flex items-center gap-3 text-xs mt-1 ${isNitido ? 'text-slate-600' : 'text-slate-400'}`}>
+                      <div className={`flex items-center gap-3 text-xs mt-1 flex-wrap ${isNitido ? 'text-slate-600' : 'text-slate-400'}`}>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" /> Vence: {payment.dueDate}
                         </span>
                         <span>·</span>
                         <span className="capitalize">{payment.frequency}</span>
+                        {payment.beneficiary && (
+                          <>
+                            <span>·</span>
+                            <span className={`font-semibold ${isNitido ? 'text-slate-700' : 'text-slate-300'}`}>
+                              👤 {payment.beneficiary}
+                            </span>
+                          </>
+                        )}
                       </div>
+                      {payment.detail && (
+                        <p className={`text-[11px] mt-1 leading-snug ${isNitido ? 'text-slate-500' : 'text-slate-500'}`}>
+                          {payment.detail}
+                        </p>
+                      )}
                     </div>
                   </div>
 

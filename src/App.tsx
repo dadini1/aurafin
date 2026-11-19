@@ -12,6 +12,7 @@ import {
   Smartphone,
   Activity,
   Building2,
+  BadgeDollarSign,
 } from 'lucide-react';
 import {
   DeviceFile,
@@ -33,6 +34,7 @@ import {
   DEFAULT_ALERT_THRESHOLDS,
   DEFAULT_GLOBAL_ALERT_THRESHOLD,
 } from './data/mockDeviceData';
+import { tabsPermitidos } from './config/navigation';
 import { Header } from './components/Header';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
 import { NotesTab } from './components/NotesTab';
@@ -62,6 +64,8 @@ import { useEmpresa } from './context/EmpresaContext';
 import { realtimeSync } from './services/realtimeSyncService';
 import { AccesoEmpresasModal } from './components/empresas/AccesoEmpresasModal';
 import { PanelEmpresasModal } from './components/empresas/PanelEmpresasModal';
+import { PanelPlanesModal } from './components/empresas/PanelPlanesModal';
+import { CambioPasswordModal } from './components/empresas/CambioPasswordModal';
 import { indexedDbService } from './services/indexedDbService';
 
 // Carga diferida de secciones pesadas: el bundle inicial sólo incluye el shell
@@ -87,11 +91,21 @@ const TabSkeleton: React.FC = () => (
 
 export default function App() {
   const { theme, isNitido, isVibrant } = useTheme();
-  const { autenticado, esAdministrador, empresa, cerrarSesion } = useEmpresa();
+  const {
+    autenticado, esAdministrador, esDuenoSistema, empresa, cerrarSesion,
+    funciones, debeCambiarPassword, refrescarSuscripcion,
+  } = useEmpresa();
 
   // Ecosistema multiempresa: acceso y panel de administración
   const [accesoEmpresasAbierto, setAccesoEmpresasAbierto] = useState(false);
   const [panelEmpresasAbierto, setPanelEmpresasAbierto] = useState(false);
+  const [panelPlanesAbierto, setPanelPlanesAbierto] = useState(false);
+  const [cambioPasswordAbierto, setCambioPasswordAbierto] = useState(false);
+
+  // Pestañas permitidas por el plan de suscripción.
+  // funciones === null → modo local sin gating; {} → sin suscripción (paywall).
+  const pestanasVisibles = tabsPermitidos(funciones);
+  const requiereSuscripcion = funciones !== null && pestanasVisibles.length === 0;
 
   // State with LocalStorage persistence
   const [profile, setProfile] = useState<UserFinancialProfile>(() => {
@@ -198,6 +212,19 @@ export default function App() {
   // App UI state
   const [activeTab, setActiveTab] = useState<'notes' | 'finances' | 'voice-analytics' | 'radar' | 'gallery' | 'mobile-app'>('notes');
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+
+  // Mantiene la pestaña activa dentro de las permitidas por el plan.
+  useEffect(() => {
+    if (requiereSuscripcion) return;
+    if (pestanasVisibles.length > 0 && !pestanasVisibles.some((t) => t.key === activeTab)) {
+      setActiveTab(pestanasVisibles[0].key);
+    }
+  }, [pestanasVisibles, activeTab, requiereSuscripcion]);
+
+  // Contraseña temporal: fuerza el cambio en el primer ingreso.
+  useEffect(() => {
+    if (autenticado && debeCambiarPassword) setCambioPasswordAbierto(true);
+  }, [autenticado, debeCambiarPassword]);
   const [voiceInitialText, setVoiceInitialText] = useState('');
   const [voiceAudioEnabled, setVoiceAudioEnabled] = useState(true);
   const [previewFile, setPreviewFile] = useState<DeviceFile | null>(null);
@@ -423,6 +450,11 @@ export default function App() {
         return nextGoals;
       });
     }
+
+    // El asistente redirige automáticamente a la sección que corresponde:
+    // pago/meta → Finanzas & Pagos; nota/recordatorio → Notas de Voz.
+    if (newPayment || newGoal) setActiveTab('finances');
+    else if (newNote) setActiveTab('notes');
   };
 
   const handleDeleteNote = (id: string) => {
@@ -589,6 +621,16 @@ export default function App() {
             <Building2 className="w-4 h-4" /> Empresas
           </button>
         )}
+        {autenticado && esDuenoSistema && (
+          <button
+            type="button"
+            onClick={() => setPanelPlanesAbierto(true)}
+            className="btn btn-secondary btn-sm shadow-[var(--shadow-pop)]"
+            title="Planes y suscripciones (configuración del sistema)"
+          >
+            <BadgeDollarSign className="w-4 h-4" /> Planes
+          </button>
+        )}
         {autenticado ? (
           <button
             type="button"
@@ -659,11 +701,32 @@ export default function App() {
         filesCount={files.length}
         activeAlertsCount={activeAlertsCount}
         country={profile.country}
+        tabs={pestanasVisibles}
       />
 
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {requiereSuscripcion ? (
+          <div className="max-w-lg mx-auto card p-8 text-center space-y-4 mt-8">
+            <div className="w-14 h-14 mx-auto rounded-2xl inset flex items-center justify-center text-accent">
+              <BadgeDollarSign className="w-7 h-7" aria-hidden />
+            </div>
+            <h2 className="text-lg font-black text-primary">Tu empresa no tiene una suscripción activa</h2>
+            <p className="text-sm text-muted">
+              {esDuenoSistema
+                ? 'Activa un plan para habilitar las funciones del sistema.'
+                : 'Pide a tu administrador que active un plan para habilitar las funciones.'}
+            </p>
+            {esDuenoSistema ? (
+              <button type="button" onClick={() => setPanelPlanesAbierto(true)} className="btn btn-primary w-full">
+                <BadgeDollarSign className="w-4 h-4" /> Configurar planes y suscripción
+              </button>
+            ) : (
+              <p className="text-xs text-muted">Mientras tanto puedes seguir consultando tu sesión.</p>
+            )}
+          </div>
+        ) : (
         <Suspense fallback={<TabSkeleton />}>
         {activeTab === 'notes' && (
           <NotesTab
@@ -780,6 +843,7 @@ export default function App() {
           />
         )}
         </Suspense>
+        )}
       </main>
 
       {/* Movable & Dismissible AI Assistant Orb */}
@@ -813,6 +877,7 @@ export default function App() {
         notesCount={notes.length}
         paymentsCount={payments.length}
         showFloatingAI={showFloatingAI}
+        tabs={pestanasVisibles}
         onToggleFloatingAI={(val) => {
           setShowFloatingAI(val);
           try {
@@ -905,6 +970,19 @@ export default function App() {
         }}
       />
       <PanelEmpresasModal abierto={panelEmpresasAbierto} onCerrar={() => setPanelEmpresasAbierto(false)} />
+
+      {/* Planes de suscripción (dueño del sistema) */}
+      {panelPlanesAbierto && (
+        <PanelPlanesModal
+          onClose={() => setPanelPlanesAbierto(false)}
+          onSuscripcionCambiada={() => void refrescarSuscripcion()}
+        />
+      )}
+
+      {/* Cambio de contraseña (obligatorio con contraseña temporal) */}
+      {cambioPasswordAbierto && (
+        <CambioPasswordModal obligatorio onClose={() => setCambioPasswordAbierto(false)} />
+      )}
     </div>
   );
 }

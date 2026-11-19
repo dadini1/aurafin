@@ -11,8 +11,15 @@ import {
 /** Clave única de cada pestaña principal de AuraFin. */
 export type MainTabKey = 'finances' | 'notes' | 'voice-analytics' | 'radar' | 'gallery' | 'mobile-app';
 
+/** Funciones activables por plan de suscripción (JSONB features en Supabase). */
+export type FuncionKey = 'finanzas' | 'notas' | 'voz_analitica' | 'radar' | 'galeria' | 'app_movil' | 'ia';
+
+export const FUNCIONES: FuncionKey[] = ['finanzas', 'notas', 'voz_analitica', 'radar', 'galeria', 'app_movil', 'ia'];
+
 export interface TabDefinition {
   key: MainTabKey;
+  /** Función de suscripción que activa esta pestaña. */
+  funcion: FuncionKey;
   /** Etiqueta completa (navegación de escritorio). */
   label: string;
   /** Etiqueta corta (barra inferior móvil). */
@@ -29,6 +36,7 @@ export interface TabDefinition {
 export const MAIN_TABS: TabDefinition[] = [
   {
     key: 'finances',
+    funcion: 'finanzas',
     label: 'Finanzas & Pagos',
     shortLabel: 'Finanzas',
     icon: DollarSign,
@@ -36,6 +44,7 @@ export const MAIN_TABS: TabDefinition[] = [
   },
   {
     key: 'notes',
+    funcion: 'notas',
     label: 'Notas de Voz',
     shortLabel: 'Notas',
     icon: FileText,
@@ -43,6 +52,7 @@ export const MAIN_TABS: TabDefinition[] = [
   },
   {
     key: 'voice-analytics',
+    funcion: 'voz_analitica',
     label: 'Voice Analytics',
     shortLabel: 'Analytics',
     icon: Activity,
@@ -50,6 +60,7 @@ export const MAIN_TABS: TabDefinition[] = [
   },
   {
     key: 'radar',
+    funcion: 'radar',
     label: 'Radar de Mercado',
     shortLabel: 'Radar',
     icon: Compass,
@@ -57,6 +68,7 @@ export const MAIN_TABS: TabDefinition[] = [
   },
   {
     key: 'gallery',
+    funcion: 'galeria',
     label: 'Galería & Contactos',
     shortLabel: 'Galería',
     icon: FolderOpen,
@@ -64,6 +76,7 @@ export const MAIN_TABS: TabDefinition[] = [
   },
   {
     key: 'mobile-app',
+    funcion: 'app_movil',
     label: 'App Móvil & Sync',
     shortLabel: 'App',
     icon: Smartphone,
@@ -73,3 +86,14 @@ export const MAIN_TABS: TabDefinition[] = [
 
 export const getTab = (key: MainTabKey): TabDefinition =>
   MAIN_TABS.find((t) => t.key === key) ?? MAIN_TABS[0];
+
+/**
+ * Filtra las pestañas según las funciones activas de la suscripción.
+ * `undefined`/`null` = sin datos de suscripción (modo local) → se muestran
+ * todas. Un objeto vacío explícito = sin suscripción activa → sin pestañas
+ * (App muestra la pantalla de pago).
+ */
+export function tabsPermitidos(funciones: Record<string, boolean> | null | undefined): TabDefinition[] {
+  if (funciones === undefined || funciones === null) return MAIN_TABS;
+  return MAIN_TABS.filter((t) => funciones[t.funcion] === true);
+}
