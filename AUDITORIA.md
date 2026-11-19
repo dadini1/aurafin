@@ -188,3 +188,30 @@ beneficiario `Richar`, contacto y contrato adjuntos, salto automático a Finanza
 Además se normalizan los pagos heredados (`monto`/`fecha`/`tipo`) con
 `src/utils/pagos.ts`: un registro antiguo con `monto` rompía el render de
 `RecentTransactionsHistory` (`undefined.toLocaleString`).
+
+# 5ª verificación (2026-11-18) · Publicación real del frontend en Cloudflare Pages
+
+`aurafin.pages.dev` y `aurafin-ai.onrender.com` ya sirven el build de `1a0745d`
+(validado también el build de `6f233b6`).
+
+- Deployment de Pages `b512c6fc` (commit `1a0745d`): estado `success`, 24 s, con
+  `vite v8.3.8` y `npm clean-install`; subió 21 archivos.
+- `aurafin.pages.dev/assets/FinancesTab-jrF2Bd81.js` contiene "Beneficiario",
+  "Pagado:" y "Vence:"; Render sirve el equivalente `FinancesTab-DA6U853z.js`.
+- La UI de Pages (Chromium) carga ese chunk por `200` y la pestaña Finanzas
+  muestra "Pagado:" y "Vence:" en la lista y el calendario.
+
+**Cómo verificar sin falsos negativos:** "Beneficiario" y "Pagado:" viven en el
+chunk diferido `FinancesTab-*.js`, no en `index-*.js` (el entrypoint). Buscar esas
+cadenas solo en `index-*.js` da `false` aunque el despliegue esté correcto. Hay que
+leer la referencia del chunk dentro del entrypoint y comprobar ese archivo:
+
+```js
+const idx = await (await fetch(base + '/assets/index-XXXX.js')).text();
+const chunk = idx.match(/assets\/FinancesTab-[A-Za-z0-9_-]+\.js/)[0];
+const js = await (await fetch(base + '/' + chunk)).text();
+js.includes('Beneficiario'); // true = build publicado
+```
+
+Además `index-*.js` puede conservar el mismo hash entre commits (cambios que solo
+tocan chunks diferidos) sin que eso indique que el deploy no ocurrió.
