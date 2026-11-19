@@ -205,6 +205,20 @@ router.get('/suscripciones', autenticar, autorizarNivel('superadmin'), async (_r
   }
 });
 
+/** Empresas con id (superadmin): selector del panel de planes. */
+router.get('/admin/empresas', autenticar, autorizarNivel('superadmin'), async (_req, res) => {
+  try {
+    const empresas = await listarEmpresas();
+    return res.json({
+      success: true,
+      empresas: empresas.map((e) => ({ id: e.id, slug: e.slug, nombre: e.nombre, logo_url: e.logo_url, colores: e.colores })),
+    });
+  } catch (error) {
+    console.error('[Planes] Error listando empresas:', error);
+    return res.status(500).json({ error: 'Error al listar empresas' });
+  }
+});
+
 export default router;
 
 /**

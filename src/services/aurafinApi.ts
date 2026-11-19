@@ -179,6 +179,9 @@ export const aurafinApi = {
   listarPlanes: () =>
     pedir<{ success: boolean; planes: PlanSuscripcion[] }>('/planes'),
 
+  listarEmpresasAdmin: () =>
+    pedir<{ success: boolean; empresas: MarcaEmpresa[] }>('/admin/empresas', { headers: cabecerasSesion() }),
+
   crearPlan: (datos: Record<string, unknown>) =>
     pedir<{ success: boolean; plan: unknown }>('/planes', {
       method: 'POST',

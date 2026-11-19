@@ -74,7 +74,7 @@ export const PanelPlanesModal: React.FC<PanelPlanesModalProps> = ({ onClose, onS
     setCargando(true);
     setError(null);
     try {
-      const [rPlanes, rEmpresas] = await Promise.all([aurafinApi.listarPlanes(), aurafinApi.listarEmpresas()]);
+      const [rPlanes, rEmpresas] = await Promise.all([aurafinApi.listarPlanes(), aurafinApi.listarEmpresasAdmin()]);
       setPlanes(rPlanes.planes || []);
       setEmpresas(rEmpresas.empresas || []);
       if (!planSel && rPlanes.planes?.length) setPlanSel(rPlanes.planes[0].id);
